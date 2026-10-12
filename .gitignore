@@ -1,0 +1,12 @@
+# Nix build outputs
+result
+result-*
+
+# nix-instantiate backups
+*.bak
+
+# direnv
+.direnv/
+
+# Local overrides
+*.local
