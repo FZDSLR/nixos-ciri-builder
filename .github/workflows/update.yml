@@ -37,6 +37,12 @@ jobs:
       - name: Update flake.lock
         run: nix flake update
 
+      - name: Setup cachix
+        uses: cachix/cachix-action@v17
+        with:
+          name: ${{ env.CACHIX_NAME }}
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
       - name: Detect which targets need a local build
         id: check
         run: |
@@ -85,12 +91,6 @@ jobs:
             printf '%s\n' "${to_build[@]:-}"
             echo "EOF"
           } >> "$GITHUB_OUTPUT"
-
-      - name: Setup cachix
-        uses: cachix/cachix-action@v17
-        with:
-          name: ${{ env.CACHIX_NAME }}
-          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
 
       - name: Build targets
         id: build
