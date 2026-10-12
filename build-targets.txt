@@ -1,0 +1,18 @@
+# Nix attribute paths (without the `.#` prefix) to keep cached.
+# One attribute path per line; lines starting with `#` are comments;
+# blank lines are ignored.
+#
+# Each entry is built via `nix build .#<path> --dry-run` first:
+#   * If no derivation would be built locally (everything hits a binary
+#     cache), the workflow skips the build and push steps for this target.
+#   * If any derivation needs a local build, the full closure is built and
+#     pushed to Cachix.
+#
+# The kernel and kpart are listed here so weekly flake updates also keep
+# the mobile-nixos build artifacts in sync on the Cachix cache.
+
+# Linux kernel for the Chromebook Ciri (MT8188).
+nixosConfigurations.nixos-ciri.config.boot.kernelPackages.kernel
+
+# Depthcharge kpart image (kernel + initrd, vboot-signed).
+packages.aarch64-linux.kpart

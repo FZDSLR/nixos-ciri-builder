@@ -1,0 +1,133 @@
+name: Update flake and push to Cachix
+
+on:
+  schedule:
+    # Weekly on Monday at 04:00 UTC.
+    - cron: '0 4 * * 1'
+  workflow_dispatch: {}
+
+env:
+  # Override per-repo if your Cachix cache has a different name.
+  CACHIX_NAME: fzdslr-nur
+
+permissions:
+  contents: write
+
+jobs:
+  update-and-build:
+    runs-on: ubuntu-24.04-arm
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install nix
+        uses: cachix/install-nix-action@v31
+        with:
+          nix_path: nixpkgs=channel:nixos-unstable
+          extra_nix_config: |
+            experimental-features = nix-command flakes
+            access-tokens = github.com=${{ secrets.GITHUB_TOKEN }}
+
+      - name: Configure git
+        run: |
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git config user.name "github-actions[bot]"
+
+      - name: Update flake.lock
+        run: nix flake update
+
+      - name: Detect which targets need a local build
+        id: check
+        run: |
+          set -euo pipefail
+          if [ ! -f build-targets.txt ]; then
+            echo "::warning::build-targets.txt not found, treating as empty."
+            echo 'to_build<<EOF' >> "$GITHUB_OUTPUT"
+            echo 'EOF' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          mapfile -t TARGETS < <(
+            grep -v '^[[:space:]]*#' build-targets.txt |
+            grep -v '^[[:space:]]*$' |
+            sed 's/[[:space:]]*$//'
+          )
+
+          if [ "${#TARGETS[@]}" -eq 0 ]; then
+            echo "No build targets configured."
+            echo 'to_build<<EOF' >> "$GITHUB_OUTPUT"
+            echo 'EOF' >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
+          echo "Configured targets:"
+          printf '  - %s\n' "${TARGETS[@]}"
+
+          to_build=()
+          for t in "${TARGETS[@]}"; do
+            # `--dry-run` resolves the full build plan; a non-zero count
+            # means at least one derivation would be compiled locally
+            # (i.e. not available from any configured binary cache).
+            count=$(nix build ".#$t" --dry-run 2>&1 | \
+              awk '/^these [0-9]+ derivations will be built:/{print $2; exit}')
+            echo "  $t -> ${count:-0} local derivations"
+            if [ -n "$count" ] && [ "$count" -gt 0 ]; then
+              to_build+=("$t")
+            fi
+          done
+
+          echo "Targets needing local build: ${#to_build[@]}"
+          printf '  - %s\n' "${to_build[@]:-(none)}"
+
+          {
+            echo "to_build<<EOF"
+            printf '%s\n' "${to_build[@]:-}"
+            echo "EOF"
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Setup cachix
+        uses: cachix/cachix-action@v17
+        with:
+          name: ${{ env.CACHIX_NAME }}
+          authToken: '${{ secrets.CACHIX_AUTH_TOKEN }}'
+
+      - name: Build targets
+        id: build
+        if: ${{ steps.check.outputs.to_build != '' }}
+        env:
+          TO_BUILD: ${{ steps.check.outputs.to_build }}
+        run: |
+          set -euo pipefail
+          nix_args=()
+          # Word-split on whitespace (incl. newlines) since TO_BUILD is
+          # a newline-separated list emitted from the detect step.
+          for t in $TO_BUILD; do
+            nix_args+=(".#$t")
+          done
+          echo "Building: ${nix_args[*]}"
+          nix build "${nix_args[@]}" --keep-going
+
+      - name: Push to Cachix
+        if: steps.build.conclusion == 'success'
+        env:
+          TO_BUILD: ${{ steps.check.outputs.to_build }}
+        run: |
+          set -euo pipefail
+          push_args=()
+          for t in $TO_BUILD; do
+            push_args+=(".#$t")
+          done
+          echo "Pushing: ${push_args[*]}"
+          cachix push "$CACHIX_NAME" "${push_args[@]}"
+
+      - name: Commit and push flake.lock
+        if: steps.build.conclusion == 'success' || steps.build.conclusion == 'skipped'
+        run: |
+          git add flake.lock
+          if git diff --cached --quiet; then
+            echo "flake.lock unchanged; nothing to commit."
+          else
+            git commit -m "flake: update lock file"
+            git push
+          fi
