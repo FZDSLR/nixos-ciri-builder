@@ -1,0 +1,45 @@
+{
+  "nodes": {
+    "mobile-nixos": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1790866230,
+        "narHash": "sha256-kpddGRQ7NxnXoub71ABrL/xrEfzT13AdVBvYOQu1vDU=",
+        "owner": "FZDSLR",
+        "repo": "mobile-nixos",
+        "rev": "d45d3f9c84aa1ffccef171502eeffa7f6e922128",
+        "type": "github"
+      },
+      "original": {
+        "owner": "FZDSLR",
+        "ref": "chromebook-ciri-7.3",
+        "repo": "mobile-nixos",
+        "type": "github"
+      }
+    },
+    "nixpkgs": {
+      "locked": {
+        "lastModified": 1791594108,
+        "narHash": "sha256-XK4KceonkwD8LuMAt/vNrz982mXJM5jeHAxMwsUXXAQ=",
+        "owner": "NixOS",
+        "repo": "nixpkgs",
+        "rev": "6510408d147d8c5e6d76043e899e9251756f6a75",
+        "type": "github"
+      },
+      "original": {
+        "owner": "NixOS",
+        "ref": "nixos-unstable",
+        "repo": "nixpkgs",
+        "type": "github"
+      }
+    },
+    "root": {
+      "inputs": {
+        "mobile-nixos": "mobile-nixos",
+        "nixpkgs": "nixpkgs"
+      }
+    }
+  },
+  "root": "root",
+  "version": 7
+}
