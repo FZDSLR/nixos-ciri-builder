@@ -114,12 +114,15 @@ jobs:
           TO_BUILD: ${{ steps.check.outputs.to_build }}
         run: |
           set -euo pipefail
-          push_args=()
+          nix_args=()
           for t in $TO_BUILD; do
-            push_args+=(".#$t")
+            nix_args+=(".#$t")
           done
-          echo "Pushing: ${push_args[*]}"
-          cachix push "$CACHIX_NAME" "${push_args[@]}"
+          # cachix push takes store paths, not installable expressions.
+          mapfile -t store_paths < <(nix build --no-link --print-out-paths "${nix_args[@]}")
+          echo "Pushing ${#store_paths[@]} path(s) to $CACHIX_NAME:"
+          printf '  %s\n' "${store_paths[@]}"
+          cachix push "$CACHIX_NAME" "${store_paths[@]}"
 
       - name: Commit and push flake.lock
         if: steps.build.conclusion == 'success' || steps.build.conclusion == 'skipped'
